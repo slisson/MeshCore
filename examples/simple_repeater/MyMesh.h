@@ -34,6 +34,7 @@
 #include <helpers/TxtDataHelpers.h>
 #include <helpers/RegionMap.h>
 #include "RateLimiter.h"
+#include "Qos.h"
 
 #ifdef WITH_BRIDGE
 extern AbstractBridge* bridge;
@@ -99,6 +100,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   RateLimiter discover_limiter, anon_limiter;
   bool region_load_active;
   unsigned long dirty_contacts_expiry;
+  Qos qos;
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif

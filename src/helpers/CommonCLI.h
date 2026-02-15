@@ -52,6 +52,7 @@ struct NodePrefs { // persisted to file
   uint32_t discovery_mod_timestamp;
   float adc_multiplier;
   char owner_info[120];
+  uint16_t qos_packets_per_hour;
 };
 
 class CommonCLICallbacks {
