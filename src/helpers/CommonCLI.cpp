@@ -83,7 +83,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier)); // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
-    // 290
+    file.read((uint8_t *)&_prefs->qos_packets_per_hour, sizeof(_prefs->qos_packets_per_hour)); // 290
+    // 292
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -110,6 +111,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
+
+    _prefs->qos_packets_per_hour = constrain(_prefs->qos_packets_per_hour, 10, 360);
 
     file.close();
   }
@@ -170,7 +173,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
-    // 290
+    file.write((uint8_t *)&_prefs->qos_packets_per_hour, sizeof(_prefs->qos_packets_per_hour));  // 290
+    // 292
 
     file.close();
   }
@@ -323,6 +327,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
       } else if (memcmp(config, "flood.max", 9) == 0) {
         sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
+      } else if (memcmp(config, "qos.rate", 8) == 0) {
+        sprintf(reply, "> %d", (uint32_t)_prefs->qos_packets_per_hour);
       } else if (memcmp(config, "direct.txdelay", 14) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
       } else if (memcmp(config, "owner.info", 10) == 0) {
@@ -557,6 +563,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           strcpy(reply, "OK");
         } else {
           strcpy(reply, "Error, max 64");
+        }
+      } else if (memcmp(config, "qos.rate", 8) == 0) {
+        uint16_t m = atoi(&config[8]);
+        if (10 <= m && m <= 360) {
+          _prefs->qos_packets_per_hour = m;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error, must be between 10 and 360");
         }
       } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
         float f = atof(&config[15]);
