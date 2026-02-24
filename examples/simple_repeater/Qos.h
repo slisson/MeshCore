@@ -1,5 +1,3 @@
-// Quality of Service header
-// Assigns airtime budget to packet types and limits their rate
 #ifndef MESHCORE_SIMPLE_REPEATER_QOS_H
 #define MESHCORE_SIMPLE_REPEATER_QOS_H
 
@@ -21,22 +19,13 @@ float distributeBudget(
     float* distributedAmount
 );
 
-
-class IBudgetBucket {
-public:
-    virtual float replenish(float amount) = 0; // increases the budget and returns the consumed amount
-    virtual float capacity() = 0; // how much budget can still be added before full
-    virtual float available() = 0; // amount of consumable budget
-    virtual ~IBudgetBucket() = default;
-};
-
-class SingleBudgetBucket : public IBudgetBucket {
+class SingleBudgetBucket {
 private:
     float budget;
     const float maxBudget;
 public:
     SingleBudgetBucket(float initialBudget, float maxBudget) : budget(initialBudget), maxBudget(maxBudget) {}
-    float replenish(float amount) override {
+    float replenish(float amount) {
         if (amount <= 0.0f) return amount;
         float added = std::min(amount, maxBudget - budget);
         budget += added;
@@ -45,10 +34,10 @@ public:
         }
         return amount - added;
     }
-    float capacity() override {
+    float capacity() {
         return maxBudget - budget;
     }
-    float available() override {
+    float available() {
         return budget;
     }
     void consume(float amount) {
@@ -247,20 +236,22 @@ private:
     SingleBudgetBucket flood_path{20.f, 20.f};
     HashBuckets flood_groupMessage{60.f, 60.f};
     HashBuckets transportflood_groupMessage{60.f, 60.f};
-    HashBuckets flood_textMessage{20.f, 20.f};
+    HashBuckets flood_textMessage{30.f, 30.f};
     PublicKeyBuckets flood_companionAdvert{3.f, 3.f};
     PublicKeyBuckets flood_repeaterAdvert{1.f, 1.f};
     SingleBudgetBucket flood_anonRequest{10.f, 30.f};
     SingleBudgetBucket flood_request{10.f, 30.f};
     SingleBudgetBucket flood_response{10.f, 50.f};
     SingleBudgetBucket flood_other{10.f, 10.f};
+    SingleBudgetBucket direct_trace{10.f, 10.f};
+    SingleBudgetBucket direct_other{40.f, 40.f};
     uint8_t publicKeyRandomOffset;
-    double packetsPerHour = 60.0;
+    double packetsPerHour = 90.0;
 
 
-    float forReplenish_distributed[11];
-    float forReplenish_weights[11];
-    float forReplenish_capacities[11];
+    float forReplenish_distributed[12];
+    float forReplenish_weights[12];
+    float forReplenish_capacities[12];
 public:
     Qos(mesh::RTCClock* rtcClock) : rtcClock(rtcClock) {
         // By picking random bytes of the public key the collisions will be different on each repeater and the advert has the chance to take a different route.
@@ -281,7 +272,7 @@ public:
         double secondsBetweenPackets = 60.0 * 60.0 / packetsPerHour;
         float budget = ((double)elapsedTime) / secondsBetweenPackets;
         MESH_DEBUG_PRINTLN("Qos::replenish(): rate %.1f, elapsed time %d seconds, replenishing budget by %.6f", packetsPerHour, elapsedTime, budget);
-        if (budget <= 0.1f) return; // float isn't precise enough for tiny increments
+        if (budget <= 0.5f) return; // float isn't precise enough for tiny increments
         lastReplenish = currentTimeSeconds;
         replenish(budget);
     }
@@ -298,21 +289,25 @@ public:
         forReplenish_capacities[8] = flood_request.capacity();
         forReplenish_capacities[9] = flood_response.capacity();
         forReplenish_capacities[10] = flood_other.capacity();
+        forReplenish_capacities[11] = direct_trace.capacity();
+        forReplenish_capacities[12] = direct_other.capacity();
 
-        forReplenish_weights[0] = 10.0f; // flood_ack
-        forReplenish_weights[1] = 10.0f; // flood_path
-        forReplenish_weights[2] = 20.0f; // flood_groupMessage
-        forReplenish_weights[3] = 20.0f; // transportflood_groupMessage
-        forReplenish_weights[4] = 10.0f; // flood_textMessage
+        forReplenish_weights[0] = 5.0f; // flood_ack
+        forReplenish_weights[1] = 2.0f; // flood_path
+        forReplenish_weights[2] = 25.0f; // flood_groupMessage
+        forReplenish_weights[3] = 25.0f; // transportflood_groupMessage
+        forReplenish_weights[4] = 20.0f; // flood_textMessage
         forReplenish_weights[5] = 1.0f; // flood_companionAdvert
         forReplenish_weights[6] = 1.0f; // flood_repeaterAdvert
-        forReplenish_weights[7] = 0.5f; // flood_anonRequest
-        forReplenish_weights[8] = 1.0f; // flood_request
-        forReplenish_weights[9] = 1.5f; // flood_response
-        forReplenish_weights[10] = 1.0f; // flood_other
+        forReplenish_weights[7] = 0.25f; // flood_anonRequest
+        forReplenish_weights[8] = 0.75f; // flood_request
+        forReplenish_weights[9] = 1.0f; // flood_response
+        forReplenish_weights[10] = 5.0f; // flood_other
+        forReplenish_weights[11] = 0.5f; // direct_trace
+        forReplenish_weights[12] = 10.0f; // direct_other
 
         distributeBudget(
-            11, 
+            13, 
             amount,
             forReplenish_capacities,
             forReplenish_weights,
@@ -330,7 +325,8 @@ public:
         flood_request.replenish(forReplenish_distributed[8]);
         flood_response.replenish(forReplenish_distributed[9]);
         flood_other.replenish(forReplenish_distributed[10]);
-
+        direct_trace.replenish(forReplenish_distributed[11]);
+        direct_other.replenish(forReplenish_distributed[12]);
 
         MESH_DEBUG_PRINTLN("Qos::replenish(): current budgets:");
         MESH_DEBUG_PRINTLN(" flood_ack              = %.6f", flood_ack.available());
@@ -344,103 +340,55 @@ public:
         MESH_DEBUG_PRINTLN(" flood_other            = %.6f", flood_other.available());
         MESH_DEBUG_PRINTLN(" flood_companionAdvert ~= %.6f", flood_companionAdvert.capacity());
         MESH_DEBUG_PRINTLN(" flood_repeaterAdvert  ~= %.6f", flood_repeaterAdvert.capacity());
+        MESH_DEBUG_PRINTLN(" direct_trace           = %.6f", direct_trace.available());
+        MESH_DEBUG_PRINTLN(" direct_other           = %.6f", direct_other.available());
 
     }
 
     bool tryConsume(const mesh::Packet *packet) {
+        replenish();
         if (packet->isRouteFlood()) {
             switch (packet->getPayloadType()) {
                 case PAYLOAD_TYPE_GRP_TXT:
                     if (packet->hasTransportCodes()) {
-                        return tryConsume_flood_groupMessage(packet->payload[0], packet->path_len);
+                        return flood_groupMessage.tryConsume(packet->payload[0], 1.0f, packet->path_len);
                     } else {
-                        return tryConsume_transportflood_groupMessage(packet->payload[0], packet->path_len);
+                        return transportflood_groupMessage.tryConsume(packet->payload[0], 1.0f, packet->path_len);
                     }
                 case PAYLOAD_TYPE_RESPONSE:
-                    return tryConsume_flood_response(packet->path_len);
+                    return flood_response.tryConsume(1.0f, packet->path_len);
                 case PAYLOAD_TYPE_REQ:
-                    return tryConsume_flood_request(packet->path_len);
+                    return flood_request.tryConsume(1.0f, packet->path_len);
                 case PAYLOAD_TYPE_ADVERT:
                     if (packet->payload_len > 100) {
                         uint32_t publicKeyHash = packet->payload[publicKeyRandomOffset] | (packet->payload[publicKeyRandomOffset + 1] << 8) | (packet->payload[publicKeyRandomOffset + 2] << 16) | (packet->payload[publicKeyRandomOffset + 3] << 24);
                         uint8_t flags = packet->payload[100];
                         bool isCompanion = (flags & 0xf) == 1;
                         if (isCompanion) {
-                            return tryConsume_flood_companionAdvert(publicKeyHash, packet->path_len);
+                            return flood_companionAdvert.tryConsume(publicKeyHash, 1.0f, packet->path_len);
                         } else {
-                            return tryConsume_flood_repeaterAdvert(publicKeyHash, packet->path_len);
+                            return flood_repeaterAdvert.tryConsume(publicKeyHash, 1.0f, packet->path_len);
                         }
                     }
                 case PAYLOAD_TYPE_TXT_MSG:
-                    return tryConsume_flood_textMessage(packet->payload[1], packet->path_len);    
+                    return flood_textMessage.tryConsume(packet->payload[1], 1.0f, packet->path_len);    
                 case PAYLOAD_TYPE_PATH:
-                    return tryConsume_flood_path(packet->path_len);   
+                    return flood_path.tryConsume(1.0f, packet->path_len);   
                 case PAYLOAD_TYPE_ANON_REQ:
-                    return tryConsume_flood_anonRequest(packet->path_len);
+                    return flood_anonRequest.tryConsume(1.0f, packet->path_len);
                 case PAYLOAD_TYPE_ACK:
-                    return tryConsume_flood_ack(packet->path_len);
+                    return flood_ack.tryConsume(1.0f, packet->path_len);
                 default:
-                    return tryConsume_flood_other(packet->path_len);
+                    return flood_other.tryConsume(1.0f, packet->path_len);
             }
         } else {
-            // There are usually very few direct packets so that no rate limitting isn't needed for them
-            return true;
+            switch (packet->getPayloadType()) {
+                case PAYLOAD_TYPE_TRACE:
+                    return direct_trace.tryConsume(1.0f, packet->path_len);
+                default:
+                    return direct_other.tryConsume(1.0f, packet->path_len);
+            }
         }
-    }
-
-    bool tryConsume_flood_groupMessage(uint8_t groupHash, uint8_t hops) {
-        replenish();
-        return flood_groupMessage.tryConsume(groupHash, 1.0f, hops);
-    }
-
-    bool tryConsume_transportflood_groupMessage(uint8_t groupHash, uint8_t hops) {
-        replenish();
-        return transportflood_groupMessage.tryConsume(groupHash, 1.0f, hops);
-    }
-
-    bool tryConsume_flood_textMessage(uint8_t senderHash, uint8_t hops) {
-        replenish();
-        return flood_textMessage.tryConsume(senderHash, 1.0f, hops);
-    }
-
-    bool tryConsume_flood_companionAdvert(uint32_t hash, uint8_t hops) {
-        replenish();
-        return flood_companionAdvert.tryConsume(hash, 1.0f, hops);
-    }
-
-    bool tryConsume_flood_repeaterAdvert(uint32_t hash, uint8_t hops) {
-        replenish();
-        return flood_repeaterAdvert.tryConsume(hash, 1.0f, hops);
-    }
-
-    bool tryConsume_flood_ack(uint8_t hops) {
-        replenish();
-        return flood_ack.tryConsume(1.0f, hops);
-    }
-
-    bool tryConsume_flood_path(uint8_t hops) {
-        replenish();
-        return flood_path.tryConsume(1.0f, hops);
-    }
-
-    bool tryConsume_flood_anonRequest(uint8_t hops) {
-        replenish();
-        return flood_anonRequest.tryConsume(1.0f, hops);
-    }
-
-    bool tryConsume_flood_request(uint8_t hops) {
-        replenish();
-        return flood_request.tryConsume(1.0f, hops);
-    }
-
-    bool tryConsume_flood_response(uint8_t hops) {
-        replenish();
-        return flood_response.tryConsume(1.0f, hops);
-    }
-
-    bool tryConsume_flood_other(uint8_t hops) {
-        replenish();
-        return flood_other.tryConsume(1.0f, hops);
     }
 };
 
