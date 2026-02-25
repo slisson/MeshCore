@@ -280,53 +280,66 @@ public:
     void replenish(float amount) {
         forReplenish_capacities[0] = flood_ack.capacity();
         forReplenish_capacities[1] = flood_path.capacity();
-        forReplenish_capacities[2] = flood_groupMessage.capacity();
-        forReplenish_capacities[3] = transportflood_groupMessage.capacity();
-        forReplenish_capacities[4] = flood_textMessage.capacity();
-        forReplenish_capacities[5] = flood_companionAdvert.capacity();
-        forReplenish_capacities[6] = flood_repeaterAdvert.capacity();
-        forReplenish_capacities[7] = flood_anonRequest.capacity();
-        forReplenish_capacities[8] = flood_request.capacity();
-        forReplenish_capacities[9] = flood_response.capacity();
-        forReplenish_capacities[10] = flood_other.capacity();
-        forReplenish_capacities[11] = direct_trace.capacity();
-        forReplenish_capacities[12] = direct_other.capacity();
+        forReplenish_capacities[2] = flood_groupMessage.capacity() + transportflood_groupMessage.capacity();
+        forReplenish_capacities[3] = flood_textMessage.capacity();
+        forReplenish_capacities[4] = flood_companionAdvert.capacity();
+        forReplenish_capacities[5] = flood_repeaterAdvert.capacity();
+        forReplenish_capacities[6] = flood_anonRequest.capacity();
+        forReplenish_capacities[7] = flood_request.capacity();
+        forReplenish_capacities[8] = flood_response.capacity();
+        forReplenish_capacities[9] = flood_other.capacity();
+        forReplenish_capacities[10] = direct_trace.capacity();
+        forReplenish_capacities[11] = direct_other.capacity();
 
-        forReplenish_weights[0] = 5.0f; // flood_ack
-        forReplenish_weights[1] = 2.0f; // flood_path
-        forReplenish_weights[2] = 25.0f; // flood_groupMessage
-        forReplenish_weights[3] = 25.0f; // transportflood_groupMessage
-        forReplenish_weights[4] = 20.0f; // flood_textMessage
-        forReplenish_weights[5] = 1.0f; // flood_companionAdvert
-        forReplenish_weights[6] = 1.0f; // flood_repeaterAdvert
-        forReplenish_weights[7] = 0.25f; // flood_anonRequest
-        forReplenish_weights[8] = 0.75f; // flood_request
-        forReplenish_weights[9] = 1.0f; // flood_response
-        forReplenish_weights[10] = 5.0f; // flood_other
-        forReplenish_weights[11] = 0.5f; // direct_trace
-        forReplenish_weights[12] = 10.0f; // direct_other
+        forReplenish_weights[0] = 2.0f; // flood_ack
+        forReplenish_weights[1] = 5.0f; // flood_path
+        forReplenish_weights[2] = 50.0f; // flood_groupMessage + transportflood_groupMessage
+        forReplenish_weights[3] = 20.0f; // flood_textMessage
+        forReplenish_weights[4] = 1.0f; // flood_companionAdvert
+        forReplenish_weights[5] = 1.0f; // flood_repeaterAdvert
+        forReplenish_weights[6] = 0.25f; // flood_anonRequest
+        forReplenish_weights[7] = 0.75f; // flood_request
+        forReplenish_weights[8] = 1.0f; // flood_response
+        forReplenish_weights[9] = 5.0f; // flood_other
+        forReplenish_weights[10] = 0.5f; // direct_trace
+        forReplenish_weights[11] = 10.0f; // direct_other
 
         distributeBudget(
-            13, 
+            12, 
             amount,
             forReplenish_capacities,
             forReplenish_weights,
             forReplenish_distributed
         );
         
+        float budgetForGroupMessages = forReplenish_distributed[2];
         flood_ack.replenish(forReplenish_distributed[0]);
         flood_path.replenish(forReplenish_distributed[1]);
-        flood_groupMessage.replenish(forReplenish_distributed[2]);
-        transportflood_groupMessage.replenish(forReplenish_distributed[3]);
-        flood_textMessage.replenish(forReplenish_distributed[4]);
-        flood_companionAdvert.replenish(forReplenish_distributed[5]);
-        flood_repeaterAdvert.replenish(forReplenish_distributed[6]);
-        flood_anonRequest.replenish(forReplenish_distributed[7]);
-        flood_request.replenish(forReplenish_distributed[8]);
-        flood_response.replenish(forReplenish_distributed[9]);
-        flood_other.replenish(forReplenish_distributed[10]);
-        direct_trace.replenish(forReplenish_distributed[11]);
-        direct_other.replenish(forReplenish_distributed[12]);
+        flood_textMessage.replenish(forReplenish_distributed[3]);
+        flood_companionAdvert.replenish(forReplenish_distributed[4]);
+        flood_repeaterAdvert.replenish(forReplenish_distributed[5]);
+        flood_anonRequest.replenish(forReplenish_distributed[6]);
+        flood_request.replenish(forReplenish_distributed[7]);
+        flood_response.replenish(forReplenish_distributed[8]);
+        flood_other.replenish(forReplenish_distributed[9]);
+        direct_trace.replenish(forReplenish_distributed[10]);
+        direct_other.replenish(forReplenish_distributed[11]);
+
+        // One bucket for all group messages that is then distributed between scoped and unscoped messages.
+        forReplenish_capacities[0] = flood_groupMessage.capacity();
+        forReplenish_capacities[1] = transportflood_groupMessage.capacity();
+        forReplenish_weights[0] = 1.0f;
+        forReplenish_weights[1] = 1.0f;
+        distributeBudget(
+            2,
+            budgetForGroupMessages,
+            forReplenish_capacities,
+            forReplenish_weights,
+            forReplenish_distributed
+        );
+        flood_groupMessage.replenish(forReplenish_distributed[0]);
+        transportflood_groupMessage.replenish(forReplenish_distributed[1]);
+
 
         MESH_DEBUG_PRINTLN("Qos::replenish(): current budgets:");
         MESH_DEBUG_PRINTLN(" flood_ack              = %.6f", flood_ack.available());
