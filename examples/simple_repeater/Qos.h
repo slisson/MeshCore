@@ -249,9 +249,9 @@ private:
     double packetsPerHour = 90.0;
 
 
-    float forReplenish_distributed[12];
-    float forReplenish_weights[12];
-    float forReplenish_capacities[12];
+    float forReplenish_distributed[9];
+    float forReplenish_weights[9];
+    float forReplenish_capacities[9];
 public:
     Qos(mesh::RTCClock* rtcClock) : rtcClock(rtcClock) {
         // By picking random bytes of the public key the collisions will be different on each repeater and the advert has the chance to take a different route.
@@ -282,27 +282,21 @@ public:
         forReplenish_capacities[1] = flood_path.capacity();
         forReplenish_capacities[2] = flood_groupMessage.capacity() + transportflood_groupMessage.capacity();
         forReplenish_capacities[3] = flood_textMessage.capacity();
-        forReplenish_capacities[4] = flood_companionAdvert.capacity();
-        forReplenish_capacities[5] = flood_repeaterAdvert.capacity();
-        forReplenish_capacities[6] = flood_anonRequest.capacity();
-        forReplenish_capacities[7] = flood_request.capacity();
-        forReplenish_capacities[8] = flood_response.capacity();
-        forReplenish_capacities[9] = flood_other.capacity();
-        forReplenish_capacities[10] = direct_trace.capacity();
-        forReplenish_capacities[11] = direct_other.capacity();
+        forReplenish_capacities[4] = flood_companionAdvert.capacity() + flood_repeaterAdvert.capacity();
+        forReplenish_capacities[5] = flood_anonRequest.capacity() + flood_request.capacity() + flood_response.capacity();
+        forReplenish_capacities[6] = flood_other.capacity();
+        forReplenish_capacities[7] = direct_trace.capacity();
+        forReplenish_capacities[8] = direct_other.capacity();
 
         forReplenish_weights[0] = 2.0f; // flood_ack
         forReplenish_weights[1] = 5.0f; // flood_path
         forReplenish_weights[2] = 50.0f; // flood_groupMessage + transportflood_groupMessage
-        forReplenish_weights[3] = 20.0f; // flood_textMessage
-        forReplenish_weights[4] = 1.0f; // flood_companionAdvert
-        forReplenish_weights[5] = 1.0f; // flood_repeaterAdvert
-        forReplenish_weights[6] = 0.25f; // flood_anonRequest
-        forReplenish_weights[7] = 0.75f; // flood_request
-        forReplenish_weights[8] = 1.0f; // flood_response
-        forReplenish_weights[9] = 5.0f; // flood_other
-        forReplenish_weights[10] = 0.5f; // direct_trace
-        forReplenish_weights[11] = 10.0f; // direct_other
+        forReplenish_weights[3] = 25.0f; // flood_textMessage
+        forReplenish_weights[4] = 5.0f; // flood_companionAdvert + flood_repeaterAdvert
+        forReplenish_weights[5] = 5.0f; // flood_anonRequest + flood_request + flood_response
+        forReplenish_weights[6] = 5.0f; // flood_other
+        forReplenish_weights[7] = 0.5f; // direct_trace
+        forReplenish_weights[8] = 10.0f; // direct_other
 
         distributeBudget(
             12, 
@@ -312,18 +306,15 @@ public:
             forReplenish_distributed
         );
         
-        float budgetForGroupMessages = forReplenish_distributed[2];
         flood_ack.replenish(forReplenish_distributed[0]);
         flood_path.replenish(forReplenish_distributed[1]);
+        float budgetForGroupMessages = forReplenish_distributed[2];
         flood_textMessage.replenish(forReplenish_distributed[3]);
-        flood_companionAdvert.replenish(forReplenish_distributed[4]);
-        flood_repeaterAdvert.replenish(forReplenish_distributed[5]);
-        flood_anonRequest.replenish(forReplenish_distributed[6]);
-        flood_request.replenish(forReplenish_distributed[7]);
-        flood_response.replenish(forReplenish_distributed[8]);
-        flood_other.replenish(forReplenish_distributed[9]);
-        direct_trace.replenish(forReplenish_distributed[10]);
-        direct_other.replenish(forReplenish_distributed[11]);
+        float budgetForAdvertsMessages = forReplenish_distributed[4];
+        float budgetForRepeaterManagementMessages = forReplenish_distributed[5];
+        flood_other.replenish(forReplenish_distributed[6]);
+        direct_trace.replenish(forReplenish_distributed[7]);
+        direct_other.replenish(forReplenish_distributed[8]);
 
         // One bucket for all group messages that is then distributed between scoped and unscoped messages.
         forReplenish_capacities[0] = flood_groupMessage.capacity();
@@ -340,6 +331,38 @@ public:
         flood_groupMessage.replenish(forReplenish_distributed[0]);
         transportflood_groupMessage.replenish(forReplenish_distributed[1]);
 
+        // One bucket for all advert messages that is then distributed between companion and repeater adverts.
+        forReplenish_capacities[0] = flood_companionAdvert.capacity();
+        forReplenish_capacities[1] = flood_repeaterAdvert.capacity();
+        forReplenish_weights[0] = 1.0f;
+        forReplenish_weights[1] = 1.0f;
+        distributeBudget(
+            2,
+            budgetForAdvertsMessages,
+            forReplenish_capacities,
+            forReplenish_weights,
+            forReplenish_distributed
+        );
+        flood_companionAdvert.replenish(forReplenish_distributed[0]);
+        flood_repeaterAdvert.replenish(forReplenish_distributed[1]);
+
+        // One bucket for all repeater management messages that is then distributed between anon requests, requests and responses.
+        forReplenish_capacities[0] = flood_anonRequest.capacity();
+        forReplenish_capacities[1] = flood_request.capacity();
+        forReplenish_capacities[2] = flood_response.capacity();
+        forReplenish_weights[0] = 2.0f;
+        forReplenish_weights[1] = 3.0f;
+        forReplenish_weights[2] = 5.0f;
+        distributeBudget(
+            3,
+            budgetForRepeaterManagementMessages,
+            forReplenish_capacities,
+            forReplenish_weights,
+            forReplenish_distributed
+        );
+        flood_anonRequest.replenish(forReplenish_distributed[0]);
+        flood_request.replenish(forReplenish_distributed[1]);
+        flood_response.replenish(forReplenish_distributed[2]);
 
         MESH_DEBUG_PRINTLN("Qos::replenish(): current budgets:");
         MESH_DEBUG_PRINTLN(" flood_ack              = %.6f", flood_ack.available());
