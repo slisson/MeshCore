@@ -243,8 +243,8 @@ private:
     SingleBudgetBucket flood_request{10.f, 30.f};
     SingleBudgetBucket flood_response{10.f, 50.f};
     SingleBudgetBucket flood_other{10.f, 10.f};
-    SingleBudgetBucket direct_trace{10.f, 10.f};
-    SingleBudgetBucket direct_other{40.f, 40.f};
+    SingleBudgetBucket direct_trace{50.f, 50.f};
+    SingleBudgetBucket direct_other{50.f, 50.f};
     uint8_t publicKeyRandomOffset;
     double packetsPerHour = 90.0;
 
@@ -288,14 +288,14 @@ public:
         forReplenish_capacities[7] = direct_trace.capacity();
         forReplenish_capacities[8] = direct_other.capacity();
 
-        forReplenish_weights[0] = 2.0f; // flood_ack
+        forReplenish_weights[0] = 5.0f; // flood_ack
         forReplenish_weights[1] = 5.0f; // flood_path
         forReplenish_weights[2] = 50.0f; // flood_groupMessage + transportflood_groupMessage
         forReplenish_weights[3] = 25.0f; // flood_textMessage
         forReplenish_weights[4] = 5.0f; // flood_companionAdvert + flood_repeaterAdvert
         forReplenish_weights[5] = 5.0f; // flood_anonRequest + flood_request + flood_response
         forReplenish_weights[6] = 5.0f; // flood_other
-        forReplenish_weights[7] = 0.5f; // direct_trace
+        forReplenish_weights[7] = 1.0f; // direct_trace
         forReplenish_weights[8] = 10.0f; // direct_other
 
         distributeBudget(
