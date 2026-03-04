@@ -248,7 +248,6 @@ private:
     uint8_t publicKeyRandomOffset;
     double packetsPerHour = 90.0;
 
-
     float forReplenish_distributed[9];
     float forReplenish_weights[9];
     float forReplenish_capacities[9];
@@ -299,7 +298,7 @@ public:
         forReplenish_weights[8] = 10.0f; // direct_other
 
         distributeBudget(
-            12, 
+            9,
             amount,
             forReplenish_capacities,
             forReplenish_weights,
