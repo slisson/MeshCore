@@ -109,7 +109,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
 
-    _prefs->qos_packets_per_hour = constrain(_prefs->qos_packets_per_hour, 10, 360);
+    _prefs->qos_packets_per_hour = constrain(_prefs->qos_packets_per_hour, 0, 360);
 
     file.close();
   }
@@ -534,12 +534,16 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         }
       } else if (memcmp(config, "qos.rate", 8) == 0) {
         uint16_t m = atoi(&config[8]);
-        if (10 <= m && m <= 360) {
+        if (0 <= m && m <= 360) {
           _prefs->qos_packets_per_hour = m;
           savePrefs();
-          strcpy(reply, "OK");
+          if (m == 0) {
+            strcpy(reply, "OK - QoS disabled");
+          } else {
+            strcpy(reply, "OK");
+          }
         } else {
-          strcpy(reply, "Error, must be between 10 and 360");
+          strcpy(reply, "Error, must be between 0 and 360");
         }
       } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
         float f = atof(&config[15]);

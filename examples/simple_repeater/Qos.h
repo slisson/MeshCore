@@ -381,6 +381,7 @@ public:
     }
 
     bool tryConsume(const mesh::Packet *packet) {
+        if (packetsPerHour <= 0.0) return true; // disabled
         replenish();
         if (packet->isRouteFlood()) {
             switch (packet->getPayloadType()) {
