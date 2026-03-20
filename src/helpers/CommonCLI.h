@@ -58,6 +58,7 @@ struct NodePrefs { // persisted to file
   float adc_multiplier;
   char owner_info[120];
   uint16_t qos_packets_per_hour;
+  uint8_t rx_boosted_gain; // power settings
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
 };
@@ -93,6 +94,10 @@ public:
   };
 
   virtual void restartBridge() {
+    // no op by default
+  };
+
+  virtual void setRxBoostedGain(bool enable) {
     // no op by default
   };
 };
